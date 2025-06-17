@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "662317488999",
+    "project_id": "ict602-group-project-d8ade",
+    "storage_bucket": "ict602-group-project-d8ade.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:662317488999:android:f78dd51a351d09de24adc2",
+        "android_client_info": {
+          "package_name": "com.example.ict602_group_project"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDd8TFTHUl0V9PktAOCf-mghZOeTguEf4Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
