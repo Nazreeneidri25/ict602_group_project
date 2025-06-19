@@ -1,0 +1,125 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_ui_auth/firebase_ui_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:ict602_group_project/Widgets/map.dart';
+import 'dart:ui';
+
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+
+  Widget _screen = MapCustom();
+
+  final List<Widget> screens = [
+    MapCustom(), //default
+    Center(child: Text("Profile")),
+    Center(child: Text("About")),
+    Center(child: Text("Settings")),
+  ];
+
+  void _onItemTapped(int index) {
+    setState(() => _screen = screens[index]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+// ... inside your HomeScreen build method:
+        appBar: PreferredSize(
+          preferredSize: Size.fromHeight(70),
+          child: ClipRRect(
+            borderRadius: BorderRadius.vertical(
+              bottom: Radius.circular(24),
+            ),
+            child: AppBar(
+              backgroundColor: Colors.white.withOpacity(0.7),
+              elevation: 0,
+              flexibleSpace: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(),
+              ),
+              title: Text(
+                "Application",
+                style: TextStyle(
+                  color: Colors.blueAccent,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 26,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              centerTitle: true,
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 16.0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.blueAccent.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.blueAccent.withOpacity(0.2),
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      icon: Icon(
+                          Icons.notifications_none, color: Colors.blueAccent,
+                          size: 28),
+                      onPressed: () {},
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        drawer: Drawer(
+            child: Column(
+              children: [
+                Expanded(
+                    child: ListView(
+                      children: [
+                        UserAccountsDrawerHeader(
+                          accountName: Text("Admin"),
+                          accountEmail: Text("Admin@admin.com"),
+                          currentAccountPicture: CircleAvatar(
+                            child: Image.asset(
+                              "lib/Assets/Icons/user.png",
+                            ),
+                          ),
+                        ),
+                        ListTile(
+                          title: Text("Home"),
+                          onTap: () => {_onItemTapped(0)},
+                        ),
+                        ListTile(
+                          title: Text("About "),
+                          onTap: () => {_onItemTapped(2)},
+                        ),
+                        ListTile(
+                          title: Text("Settings"),
+                          onTap: () => {_onItemTapped(3)},
+                        ),
+                      ],
+                    )),
+                ListTile(
+                  trailing: SignOutButton(),
+                )
+              ],
+            )
+        ),
+        body: _screen
+    );
+  }
+}
+
+

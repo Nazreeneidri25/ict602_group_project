@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart' hide EmailAuthProvider;
 import 'package:firebase_ui_auth/firebase_ui_auth.dart';
+import 'package:firebase_ui_oauth_google/firebase_ui_oauth_google.dart';
 import 'package:flutter/material.dart';
 import 'package:ict602_group_project/Screen/home.dart';
 
@@ -15,8 +16,8 @@ class AuthGate extends StatelessWidget {
               .hasData) { //if there's no user object currently (not login - means data is empty)
             return SignInScreen( //SignInScreen that is provided by FlutterFire allow user to sign , forgot password and register
               providers: [
-                EmailAuthProvider(),
-                // This widget is built in from FlutterFire | there will have 'email' and 'password' text input and 'sign in' button
+                EmailAuthProvider(), // This widget is built in from FlutterFire | there will have 'email' and 'password' text input and 'sign in' button
+                GoogleProvider(clientId: "662317488999-545r1t8utr6r2d8becvg2cuf0629hhfv.apps.googleusercontent.com"),
               ],
               headerBuilder: (context, constraints, shrinkOffset) {
                 //headerBuilder argument allow us to customize above sign form (provider) widgets of SignScreen

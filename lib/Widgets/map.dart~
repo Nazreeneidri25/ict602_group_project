@@ -1,0 +1,235 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
+import 'package:uuid/uuid.dart';
+
+class MapCustom extends StatefulWidget {
+  const MapCustom({super.key});
+
+  @override
+  State<MapCustom> createState() => _mapCustomState();
+}
+
+class _mapCustomState extends State<MapCustom> {
+  late GoogleMapController mapController;
+  static const LatLng _defaultCenter = LatLng(3.140853, 101.693207);
+  LatLng _currentLatLng = _defaultCenter;
+
+  List<dynamic> listForPlaces = [];
+  Uuid uuid = Uuid();
+  final TextEditingController searchBarController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _getUserLocation().then((pos) {
+      setState(() {
+        _currentLatLng = LatLng(pos.latitude, pos.longitude);
+      });
+    });
+    searchBarController.addListener(_onModify);
+  }
+
+  Future<Position> _getUserLocation() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      return Future.error('Location services are disabled.');
+    }
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        return Future.error('Location permissions are denied');
+      }
+    }
+    if (permission == LocationPermission.deniedForever) {
+      return Future.error('Location permissions are permanently denied.');
+    }
+    return await Geolocator.getCurrentPosition();
+  }
+
+  void makeSuggestion(String input) async {
+    if (input.isEmpty) {
+      setState(() => listForPlaces = []);
+      return;
+    }
+    String sessionToken = uuid.v4();
+    String apiKey = "AIzaSyCIoRmMjbFRJePcWTt0-Nz7WEIcGCzV74s";
+    String url =
+        "https://maps.googleapis.com/maps/api/place/autocomplete/json?input=$input&key=$apiKey&sessiontoken=$sessionToken";
+    var response = await http.get(Uri.parse(url));
+    if (response.statusCode == 200) {
+      setState(() {
+        listForPlaces = jsonDecode(response.body)['predictions'];
+      });
+    } else {
+      setState(() => listForPlaces = []);
+    }
+  }
+
+  void _onModify() {
+    makeSuggestion(searchBarController.text);
+  }
+
+  Future<void> _moveToPlace(String placeId) async {
+    String apiKey = "AIzaSyCIoRmMjbFRJePcWTt0-Nz7WEIcGCzV74s";
+    String url =
+        "https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&key=$apiKey";
+    var response = await http.get(Uri.parse(url));
+    if (response.statusCode == 200) {
+      var location = jsonDecode(response.body)['result']['geometry']['location'];
+      LatLng latLng = LatLng(location['lat'], location['lng']);
+      setState(() {
+        _currentLatLng = latLng;
+        listForPlaces = [];
+        searchBarController.clear();
+      });
+      mapController.animateCamera(CameraUpdate.newLatLng(latLng));
+    }
+  }
+
+  void _onMapCreated(GoogleMapController controller) {
+    mapController = controller;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Stack(
+          children: [
+            GoogleMap(
+              onMapCreated: _onMapCreated,
+              initialCameraPosition: CameraPosition(
+                target: _currentLatLng,
+                zoom: 18,
+              ),
+              markers: {
+                Marker(
+                  markerId: MarkerId("Current"),
+                  position: _currentLatLng,
+                ),
+              },
+              mapType: MapType.normal,
+            ),
+            // Inside your Positioned widget in the Stack
+            Positioned(
+              top: 24,
+              left: 20,
+              right: 20,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Material(
+                    elevation: 8,
+                    borderRadius: BorderRadius.circular(16),
+                    shadowColor: Colors.black26,
+                    child: TextField(
+                      controller: searchBarController,
+                      style: TextStyle(fontSize: 18),
+                      decoration: InputDecoration(
+                        prefixIcon: Icon(Icons.search, color: Colors.grey[700]),
+                        hintText: "Search for a location...",
+                        hintStyle: TextStyle(color: Colors.grey[500], fontSize: 16),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      ),
+                    ),
+                  ),
+                  AnimatedSwitcher(
+                    duration: Duration(milliseconds: 250),
+                    child: listForPlaces.isNotEmpty
+                        ? Container(
+                      key: ValueKey('suggestionList'),
+                      margin: EdgeInsets.only(top: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 12,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      constraints: BoxConstraints(
+                        maxHeight: 240,
+                      ),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: listForPlaces.length,
+                        separatorBuilder: (context, index) => Divider(height: 1, color: Colors.grey[200]),
+                        itemBuilder: (context, index) {
+                          var place = listForPlaces[index];
+                          return ListTile(
+                            leading: Icon(Icons.location_on, color: Colors.blueAccent),
+                            title: Text(
+                              place['description'],
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                            ),
+                            onTap: () => _moveToPlace(place['place_id']),
+                          );
+                        },
+                      ),
+                    )
+                        : SizedBox.shrink(),
+                  ),
+                ],
+              ),
+            )
+          ],
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
+      floatingActionButton: Container(
+        height: 64,
+        width: 64,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.blueAccent, Colors.lightBlueAccent],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black26,
+              blurRadius: 12,
+              offset: Offset(0, 6),
+            ),
+          ],
+        ),
+        child: FloatingActionButton(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          onPressed: () async {
+            var pos = await _getUserLocation();
+            setState(() {
+              _currentLatLng = LatLng(pos.latitude, pos.longitude);
+            });
+            mapController.animateCamera(
+              CameraUpdate.newLatLng(_currentLatLng),
+            );
+          },
+          child: Icon(
+            Icons.my_location,
+            color: Colors.white,
+            size: 32,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(32),
+          ),
+        ),
+      ),
+    );
+  }
+
+}
