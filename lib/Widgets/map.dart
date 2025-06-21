@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
@@ -20,6 +21,9 @@ class _mapCustomState extends State<MapCustom> {
   List<dynamic> listForPlaces = [];
   Uuid uuid = Uuid();
   final TextEditingController searchBarController = TextEditingController();
+  Map<String, dynamic>? _currentPlaceDetails;
+
+  Set<Marker> FoodTruckWidgets = {};
 
   @override
   void initState() {
@@ -29,7 +33,24 @@ class _mapCustomState extends State<MapCustom> {
         _currentLatLng = LatLng(pos.latitude, pos.longitude);
       });
     });
+    _showNearbyFoodTruck(_currentLatLng);
     searchBarController.addListener(_onModify);
+  }
+
+  Future<String?> getPlaceIdFromLatLng(double lat, double lng) async {
+    String apiKey = "AIzaSyCIoRmMjbFRJePcWTt0-Nz7WEIcGCzV74s";
+    String url = "https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat,$lng&key=$apiKey";
+    final response = await http.get(Uri.parse(url));
+
+    if (response.statusCode == 200) {
+      var results = jsonDecode(response.body)['results'];
+      if (results != null && results.isNotEmpty) {
+        print("masuk sini?");
+        print(results[0]['place_id']);
+        return results[0]['place_id'];
+      }else print("masuk else");
+    }
+    return null;
   }
 
   Future<Position> _getUserLocation() async {
@@ -77,19 +98,174 @@ class _mapCustomState extends State<MapCustom> {
 
   Future<void> _moveToPlace(String placeId) async {
     String apiKey = "AIzaSyCIoRmMjbFRJePcWTt0-Nz7WEIcGCzV74s";
-    String url =
-        "https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&key=$apiKey";
+    String url = "https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&key=$apiKey&fields=name,formatted_address,geometry,photos";
     var response = await http.get(Uri.parse(url));
     if (response.statusCode == 200) {
-      var location = jsonDecode(response.body)['result']['geometry']['location'];
-      LatLng latLng = LatLng(location['lat'], location['lng']);
+      var result = jsonDecode(response.body)['result'];
+      LatLng latLng = LatLng(result['geometry']['location']['lat'], result['geometry']['location']['lng']);
       setState(() {
         _currentLatLng = latLng;
         listForPlaces = [];
         searchBarController.clear();
       });
       mapController.animateCamera(CameraUpdate.newLatLng(latLng));
+      _currentPlaceDetails = result;
+      _showNearbyFoodTruck(_currentLatLng);
+      _showPlaceDetails(placeId); // Pass the decoded result map
     }
+  }
+
+  Future<void> _showNearbyFoodTruck(LatLng currentLocation) async {
+    String apiKey = "AIzaSyCIoRmMjbFRJePcWTt0-Nz7WEIcGCzV74s";
+
+    String url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+        "?location=${currentLocation.latitude},${currentLocation.longitude}"
+        "&radius=7000"
+        "&keyword=food%20truck"
+        "&key=$apiKey";
+    final response = await http.get(Uri.parse(url));
+
+    if (response.statusCode == 200) {
+      final results = jsonDecode(response.body)["results"];
+      Set<Marker> foodTruckMarkers = {};
+
+
+      for (var place in results) {
+        final location = place['geometry']['location'];
+        foodTruckMarkers.add(
+          Marker(
+            markerId: MarkerId(place['place_id']),
+            position: LatLng(location['lat'], location['lng']),
+            infoWindow: InfoWindow(title: place['name']),
+            onTap: () => _showPlaceDetails(place['place_id']),
+          ),
+        );
+      }
+
+      setState(() {
+        FoodTruckWidgets = foodTruckMarkers;
+      });
+    }
+
+
+  }
+
+  void _showPlaceDetails(String placeId) async{
+    String apiKey = "AIzaSyCIoRmMjbFRJePcWTt0-Nz7WEIcGCzV74s";
+    String URL = "https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&key=$apiKey&*";
+
+    final response = await http.get(Uri.parse(URL));
+
+
+    if(response.statusCode == 200) {
+      final result = jsonDecode(response.body)["result"];
+
+      print("here $result");
+      double? rating = result['rating'];
+      String? name = result['name'];
+      String? phoneNumber = result['formatted_phone_number'];
+      String? address = result['formatted_address'];
+      List<dynamic>? openingHours = result['opening_hours']?['weekday_text'];
+
+      String? photoRef = result['photos'] != null && result['photos'].isNotEmpty
+          ? result['photos'][0]['photo_reference']
+          : null;
+      String photoURL = photoRef != null
+          ? "https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=$photoRef&key=AIzaSyCIoRmMjbFRJePcWTt0-Nz7WEIcGCzV74s"
+          : "";
+
+
+      showModalBottomSheet(
+        context: context,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (context) => SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (photoURL.isNotEmpty)
+                  Center(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.network(photoURL, height: 180, width: double.infinity, fit: BoxFit.cover),
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        name ?? "No Name",
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    if (rating != null)
+                      RatingBarIndicator(
+                        rating: rating,
+                        itemBuilder: (context, _) => const Icon(Icons.star, color: Colors.amber),
+                        itemCount: 5,
+                        itemSize: 24,
+                        direction: Axis.horizontal,
+                      ),
+                    if (rating != null)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: Text(
+                          rating.toStringAsFixed(1),
+                          style: const TextStyle(fontSize: 16, color: Colors.grey),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.location_on, color: Colors.blueAccent, size: 20),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        address ?? "No Address",
+                        style: const TextStyle(fontSize: 16, color: Colors.grey),
+                      ),
+                    ),
+                  ],
+                ),
+                if (phoneNumber != null) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.phone, color: Colors.green, size: 20),
+                      const SizedBox(width: 6),
+                      Text(
+                        phoneNumber,
+                        style: const TextStyle(fontSize: 16, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ],
+                if (openingHours != null) ...[
+                  const SizedBox(height: 16),
+                  const Text("Opening Hours:", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  ...openingHours.map((hour) => Text(hour, style: const TextStyle(fontSize: 14, color: Colors.grey))),
+                ],
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+
+
+
+
+
   }
 
   void _onMapCreated(GoogleMapController controller) {
@@ -112,9 +288,25 @@ class _mapCustomState extends State<MapCustom> {
                 Marker(
                   markerId: MarkerId("Current"),
                   position: _currentLatLng,
+                  onTap: () {
+                    if (_currentPlaceDetails != null) {
+                      _showPlaceDetails(getPlaceIdFromLatLng(_currentLatLng.longitude, _currentLatLng.longitude) as String);
+                    }
+                  }
                 ),
+                ...FoodTruckWidgets,
               },
               mapType: MapType.normal,
+              onTap: (poi)async {
+                String? placeId = await getPlaceIdFromLatLng(poi.latitude, poi.longitude);
+                if (placeId != null) {
+                  _moveToPlace(placeId);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('No POI found at this location.')),
+                  );
+                }
+              }
             ),
             // Inside your Positioned widget in the Stack
             Positioned(
@@ -216,6 +408,7 @@ class _mapCustomState extends State<MapCustom> {
             var pos = await _getUserLocation();
             setState(() {
               _currentLatLng = LatLng(pos.latitude, pos.longitude);
+              _showNearbyFoodTruck(_currentLatLng);
             });
             mapController.animateCamera(
               CameraUpdate.newLatLng(_currentLatLng),

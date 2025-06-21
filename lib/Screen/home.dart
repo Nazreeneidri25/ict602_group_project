@@ -46,7 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Container(),
               ),
               title: Text(
-                "Application",
+                "FoodTruck Finder",
                 style: TextStyle(
                   color: Colors.blueAccent,
                   fontWeight: FontWeight.bold,
