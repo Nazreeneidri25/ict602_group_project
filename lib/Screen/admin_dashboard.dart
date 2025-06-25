@@ -1,0 +1,96 @@
+import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class AdminDashboard extends StatefulWidget {
+  const AdminDashboard({super.key});
+
+  @override
+  State<AdminDashboard> createState() => _AdminDashboardState();
+}
+
+class _AdminDashboardState extends State<AdminDashboard> {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  bool _isAdmin = false;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAdminPrivileges();
+  }
+
+  Future<void> _checkAdminPrivileges() async {
+    final User? user = _auth.currentUser;
+    if (user == null) {
+      // Redirect to login if no user is logged in
+      Navigator.pushReplacementNamed(context, '/auth');
+      return;
+    }
+
+    try {
+      // Check if the user has admin privileges in Firestore
+      final DocumentSnapshot userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (userDoc.exists && userDoc['role'] == 'admin') {
+        setState(() {
+          _isAdmin = true;
+        });
+      } else {
+        // Redirect non-admin users
+        Navigator.pushReplacementNamed(context, '/home');
+      }
+    } catch (e) {
+      // Handle errors (e.g., Firestore issues)
+      print('Error checking admin privileges: $e');
+      Navigator.pushReplacementNamed(context, '/auth');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (!_isAdmin) {
+      return const SizedBox.shrink(); // Prevent rendering if not admin
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Admin Dashboard'),
+      ),
+      drawer: Drawer(
+        child: ListView(
+          children: [
+            const DrawerHeader(
+              decoration: BoxDecoration(color: Colors.blueAccent),
+              child: Text('Admin Menu', style: TextStyle(color: Colors.white)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.logout),
+              title: const Text('Sign Out'),
+              onTap: () async {
+                await _auth.signOut();
+                Navigator.pushReplacementNamed(context, '/auth');
+              },
+            ),
+          ],
+        ),
+      ),
+      body: const Center(
+        child: Text('Welcome to the Admin Dashboard'),
+      ),
+    );
+  }
+}

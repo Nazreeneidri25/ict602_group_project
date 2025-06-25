@@ -1,13 +1,17 @@
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import 'package:loader_overlay/loader_overlay.dart';
 import 'package:uuid/uuid.dart';
 
 class MapCustom extends StatefulWidget {
-  const MapCustom({super.key});
+  final Function(LatLng)? onLocationSelected;
+  const MapCustom({super.key, this.onLocationSelected});
+
 
   @override
   State<MapCustom> createState() => _mapCustomState();
@@ -15,30 +19,63 @@ class MapCustom extends StatefulWidget {
 
 class _mapCustomState extends State<MapCustom> {
   late GoogleMapController mapController;
-  static const LatLng _defaultCenter = LatLng(3.140853, 101.693207);
-  LatLng _currentLatLng = _defaultCenter;
-
+  late LatLng _currentLatLng = LatLng(3.1499 , 101.6945);
+  late String? currentPlaceID;
   List<dynamic> listForPlaces = [];
   Uuid uuid = Uuid();
   final TextEditingController searchBarController = TextEditingController();
-  Map<String, dynamic>? _currentPlaceDetails;
-
   Set<Marker> FoodTruckWidgets = {};
+  Set<Marker> FoodTruckUserWidgets = {};
+  String apiKey = "AIzaSyCIoRmMjbFRJePcWTt0-Nz7WEIcGCzV74s";
+
+
 
   @override
   void initState() {
     super.initState();
     _getUserLocation().then((pos) {
-      setState(() {
-        _currentLatLng = LatLng(pos.latitude, pos.longitude);
+      setState(()  {
+        _currentLatLng =  LatLng(pos.latitude, pos.longitude);
+        mapController.animateCamera(CameraUpdate.newLatLng(_currentLatLng));
+      });
+      setState(() async{
+        context.loaderOverlay.show();
+        currentPlaceID = await getPlaceIdFromLatLng(pos.latitude, pos.longitude);
+        _showNearbyFoodTruck(_currentLatLng);
+        context.loaderOverlay.hide();
       });
     });
-    _showNearbyFoodTruck(_currentLatLng);
+    showFoodTruckUserWidgets();
     searchBarController.addListener(_onModify);
+
+  }
+
+  Future<void> showFoodTruckUserWidgets() async {
+    final snapshot = await FirebaseFirestore.instance.collection('food_trucks').get();
+
+    final markers = snapshot.docs.map((doc) {
+      final data = doc.data();
+      final lat = data['latitude'] as double?;
+      final lng = data['longitude'] as double?;
+      final foodType = data['foodTruckType'];
+
+      final placeID = getPlaceIdFromLatLng(lat!, lng!);
+
+      return Marker(
+        markerId: MarkerId(doc.id),
+        position: LatLng(lat, lng),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+        // onTap: () => _showPlaceDetails(placeID as String , data);
+      );
+    }).whereType<Marker>().toSet();
+
+    setState(() {
+      FoodTruckUserWidgets = markers;
+    });
+
   }
 
   Future<String?> getPlaceIdFromLatLng(double lat, double lng) async {
-    String apiKey = "AIzaSyCIoRmMjbFRJePcWTt0-Nz7WEIcGCzV74s";
     String url = "https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat,$lng&key=$apiKey";
     final response = await http.get(Uri.parse(url));
 
@@ -54,6 +91,7 @@ class _mapCustomState extends State<MapCustom> {
   }
 
   Future<Position> _getUserLocation() async {
+    context.loaderOverlay.show();
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       return Future.error('Location services are disabled.');
@@ -68,6 +106,7 @@ class _mapCustomState extends State<MapCustom> {
     if (permission == LocationPermission.deniedForever) {
       return Future.error('Location permissions are permanently denied.');
     }
+    context.loaderOverlay.hide();
     return await Geolocator.getCurrentPosition();
   }
 
@@ -77,9 +116,7 @@ class _mapCustomState extends State<MapCustom> {
       return;
     }
     String sessionToken = uuid.v4();
-    String apiKey = "AIzaSyCIoRmMjbFRJePcWTt0-Nz7WEIcGCzV74s";
-    String url =
-        "https://maps.googleapis.com/maps/api/place/autocomplete/json?input=$input&key=$apiKey&sessiontoken=$sessionToken";
+    String url = "https://maps.googleapis.com/maps/api/place/autocomplete/json?input=$input&key=$apiKey&sessiontoken=$sessionToken";
     var response = await http.get(Uri.parse(url));
     if (response.statusCode == 200) {
       setState(() {
@@ -97,7 +134,7 @@ class _mapCustomState extends State<MapCustom> {
 
 
   Future<void> _moveToPlace(String placeId) async {
-    String apiKey = "AIzaSyCIoRmMjbFRJePcWTt0-Nz7WEIcGCzV74s";
+    context.loaderOverlay.show();
     String url = "https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&key=$apiKey&fields=name,formatted_address,geometry,photos";
     var response = await http.get(Uri.parse(url));
     if (response.statusCode == 200) {
@@ -107,17 +144,17 @@ class _mapCustomState extends State<MapCustom> {
         _currentLatLng = latLng;
         listForPlaces = [];
         searchBarController.clear();
+        currentPlaceID = placeId;
       });
       mapController.animateCamera(CameraUpdate.newLatLng(latLng));
-      _currentPlaceDetails = result;
+      // _currentPlaceDetails = result;
       _showNearbyFoodTruck(_currentLatLng);
       _showPlaceDetails(placeId); // Pass the decoded result map
     }
+    context.loaderOverlay.hide();
   }
 
   Future<void> _showNearbyFoodTruck(LatLng currentLocation) async {
-    String apiKey = "AIzaSyCIoRmMjbFRJePcWTt0-Nz7WEIcGCzV74s";
-
     String url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
         "?location=${currentLocation.latitude},${currentLocation.longitude}"
         "&radius=7000"
@@ -151,21 +188,21 @@ class _mapCustomState extends State<MapCustom> {
   }
 
   void _showPlaceDetails(String placeId) async{
-    String apiKey = "AIzaSyCIoRmMjbFRJePcWTt0-Nz7WEIcGCzV74s";
     String URL = "https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&key=$apiKey&*";
-
     final response = await http.get(Uri.parse(URL));
+    print(placeId);
 
 
     if(response.statusCode == 200) {
       final result = jsonDecode(response.body)["result"];
-
       print("here $result");
       double? rating = result['rating'];
       String? name = result['name'];
       String? phoneNumber = result['formatted_phone_number'];
       String? address = result['formatted_address'];
       List<dynamic>? openingHours = result['opening_hours']?['weekday_text'];
+
+
 
       String? photoRef = result['photos'] != null && result['photos'].isNotEmpty
           ? result['photos'][0]['photo_reference']
@@ -180,92 +217,190 @@ class _mapCustomState extends State<MapCustom> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        builder: (context) => SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (photoURL.isNotEmpty)
-                  Center(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Image.network(photoURL, height: 180, width: double.infinity, fit: BoxFit.cover),
-                    ),
-                  ),
-                const SizedBox(height: 16),
-                Row(
+        builder: (context) =>
+            SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        name ?? "No Name",
-                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    if (rating != null)
-                      RatingBarIndicator(
-                        rating: rating,
-                        itemBuilder: (context, _) => const Icon(Icons.star, color: Colors.amber),
-                        itemCount: 5,
-                        itemSize: 24,
-                        direction: Axis.horizontal,
-                      ),
-                    if (rating != null)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 8),
-                        child: Text(
-                          rating.toStringAsFixed(1),
-                          style: const TextStyle(fontSize: 16, color: Colors.grey),
+                    if (photoURL.isNotEmpty)
+                      Center(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Image.network(photoURL, height: 180,
+                              width: double.infinity,
+                              fit: BoxFit.cover),
                         ),
                       ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Icon(Icons.location_on, color: Colors.blueAccent, size: 20),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        address ?? "No Address",
-                        style: const TextStyle(fontSize: 16, color: Colors.grey),
-                      ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            name ?? "No Name",
+                            style: const TextStyle(
+                                fontSize: 22, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        if (rating != null)
+                          RatingBarIndicator(
+                            rating: rating,
+                            itemBuilder: (context, _) =>
+                            const Icon(Icons.star, color: Colors.amber),
+                            itemCount: 5,
+                            itemSize: 24,
+                            direction: Axis.horizontal,
+                          ),
+                        if (rating != null)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: Text(
+                              rating.toStringAsFixed(1),
+                              style: const TextStyle(fontSize: 16, color: Colors
+                                  .grey),
+                            ),
+                          ),
+                      ],
                     ),
-                  ],
-                ),
-                if (phoneNumber != null) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(Icons.phone, color: Colors.green, size: 20),
-                      const SizedBox(width: 6),
-                      Text(
-                        phoneNumber,
-                        style: const TextStyle(fontSize: 16, color: Colors.grey),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(Icons.location_on, color: Colors.blueAccent,
+                            size: 20),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            address ?? "No Address",
+                            style: const TextStyle(
+                                fontSize: 16, color: Colors.grey),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (phoneNumber != null) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(
+                              Icons.phone, color: Colors.green, size: 20),
+                          const SizedBox(width: 6),
+                          Text(
+                            phoneNumber,
+                            style: const TextStyle(
+                                fontSize: 16, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                      Center(
+                        child: InkWell(
+                          onTap: () {}, 
+                          borderRadius: BorderRadius.circular(30),
+                          child: Container(
+                            padding: EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Colors.blueAccent, Colors.lightBlueAccent],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(30),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.blueAccent.withOpacity(0.18),
+                                  blurRadius: 12,
+                                  offset: Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.phone, color: Colors.white, size: 22),
+                                SizedBox(width: 10),
+                                Text(
+                                  "Call",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 17,
+                                    letterSpacing: 1.1,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                     ],
-                  ),
-                ],
-                if (openingHours != null) ...[
-                  const SizedBox(height: 16),
-                  const Text("Opening Hours:", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  ...openingHours.map((hour) => Text(hour, style: const TextStyle(fontSize: 14, color: Colors.grey))),
-                ],
-                const SizedBox(height: 16),
-              ],
+                    if (openingHours != null) ...[
+                      const SizedBox(height: 20),
+                      Card(
+                        color: Colors.blue[50],
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16)),
+                        elevation: 0,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 14, horizontal: 18),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: const [
+                                  Icon(Icons.access_time,
+                                      color: Colors.blueAccent, size: 22),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    "Opening Hours",
+                                    style: TextStyle(fontSize: 17,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.blueAccent),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              ...openingHours.map<Widget>((hour) {
+                                final parts = hour.split(': ');
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 3),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.circle, size: 8,
+                                          color: Colors.blueAccent),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        parts[0],
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 15),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          parts.length > 1 ? parts[1] : '',
+                                          style: const TextStyle(
+                                              color: Colors.grey, fontSize: 15),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
             ),
-          ),
-        ),
       );
     }
-
-
-
-
-
-
   }
 
   void _onMapCreated(GoogleMapController controller) {
@@ -284,29 +419,62 @@ class _mapCustomState extends State<MapCustom> {
                 target: _currentLatLng,
                 zoom: 18,
               ),
+              zoomControlsEnabled: false,
               markers: {
                 Marker(
                   markerId: MarkerId("Current"),
                   position: _currentLatLng,
-                  onTap: () {
-                    if (_currentPlaceDetails != null) {
-                      _showPlaceDetails(getPlaceIdFromLatLng(_currentLatLng.longitude, _currentLatLng.longitude) as String);
-                    }
+                  onTap: () async{
+                    context.loaderOverlay.show();
+                    _showPlaceDetails(currentPlaceID!);
+                    context.loaderOverlay.hide();
+
                   }
                 ),
                 ...FoodTruckWidgets,
+                ...FoodTruckUserWidgets,
               },
               mapType: MapType.normal,
               onTap: (poi)async {
                 String? placeId = await getPlaceIdFromLatLng(poi.latitude, poi.longitude);
+
                 if (placeId != null) {
-                  _moveToPlace(placeId);
+                  _showPlaceDetails(placeId);
+                  widget.onLocationSelected!(poi);
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('No POI found at this location.')),
                   );
                 }
               }
+            ),
+            // Add inside the Stack, after your search bar Positioned widget
+            Positioned(
+              bottom: 24,
+              right: 20,
+              child: Column(
+                children: [
+                  FloatingActionButton(
+                    heroTag: "zoom_in",
+                    mini: true,
+                    backgroundColor: Colors.white,
+                    child: Icon(Icons.add, color: Colors.blueAccent),
+                    onPressed: () {
+                      mapController.animateCamera(CameraUpdate.zoomIn());
+                    },
+                  ),
+                  SizedBox(height: 12),
+                  FloatingActionButton(
+                    heroTag: "zoom_out",
+                    mini: true,
+                    backgroundColor: Colors.white,
+                    child: Icon(Icons.remove, color: Colors.blueAccent),
+                    onPressed: () {
+                      mapController.animateCamera(CameraUpdate.zoomOut());
+                    },
+                  ),
+                ],
+              ),
             ),
             // Inside your Positioned widget in the Stack
             Positioned(
@@ -345,17 +513,17 @@ class _mapCustomState extends State<MapCustom> {
                       margin: EdgeInsets.only(top: 8),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(18),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black12,
-                            blurRadius: 12,
-                            offset: Offset(0, 4),
+                            color: Colors.blueAccent.withOpacity(0.08),
+                            blurRadius: 16,
+                            offset: Offset(0, 6),
                           ),
                         ],
                       ),
                       constraints: BoxConstraints(
-                        maxHeight: 240,
+                        maxHeight: 320,
                       ),
                       child: ListView.separated(
                         shrinkWrap: true,
@@ -363,13 +531,47 @@ class _mapCustomState extends State<MapCustom> {
                         separatorBuilder: (context, index) => Divider(height: 1, color: Colors.grey[200]),
                         itemBuilder: (context, index) {
                           var place = listForPlaces[index];
-                          return ListTile(
-                            leading: Icon(Icons.location_on, color: Colors.blueAccent),
-                            title: Text(
-                              place['description'],
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                          return Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(14),
+                              onTap: () => _moveToPlace(place['place_id']),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.blueAccent.withOpacity(0.12),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      padding: EdgeInsets.all(8),
+                                      child: Icon(Icons.location_on, color: Colors.blueAccent, size: 24),
+                                    ),
+                                    SizedBox(width: 14),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            place['structured_formatting']?['main_text'] ?? place['description'],
+                                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                                          ),
+                                          if (place['structured_formatting']?['secondary_text'] != null)
+                                            Padding(
+                                              padding: const EdgeInsets.only(top: 2),
+                                              child: Text(
+                                                place['structured_formatting']['secondary_text'],
+                                                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                            onTap: () => _moveToPlace(place['place_id']),
                           );
                         },
                       ),
@@ -406,6 +608,7 @@ class _mapCustomState extends State<MapCustom> {
           elevation: 0,
           onPressed: () async {
             var pos = await _getUserLocation();
+            currentPlaceID = await getPlaceIdFromLatLng(pos.latitude, pos.longitude);
             setState(() {
               _currentLatLng = LatLng(pos.latitude, pos.longitude);
               _showNearbyFoodTruck(_currentLatLng);
@@ -424,6 +627,7 @@ class _mapCustomState extends State<MapCustom> {
           ),
         ),
       ),
+
     );
   }
 
