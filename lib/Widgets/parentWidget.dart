@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:ict602_group_project/Widgets/customDrawer.dart';
 import 'package:loader_overlay/loader_overlay.dart';
 
@@ -43,6 +44,7 @@ class _ParentwidgetState extends State<ParentWidget> {
     super.initState();
     currentUserData();
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -97,7 +99,17 @@ class _ParentwidgetState extends State<ParentWidget> {
         ),
       ),
       drawer: CustomDrawer(userInformation: userInformation, auth: auth),
-      body: widget.child,
+      body: LoaderOverlay(
+        child: widget.child,
+        overlayWidgetBuilder: (_) {
+          return Center(
+              child: SpinKitThreeInOut(
+                color: Colors.blueAccent,
+                size: 50.0,
+              )
+          );
+        },
+      ),
     );
   }
 }

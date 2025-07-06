@@ -4,15 +4,12 @@ import 'package:firebase_ui_oauth_google/firebase_ui_oauth_google.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
-import 'package:loader_overlay/loader_overlay.dart';
 
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
   Future<void> _handlePostSignIn(BuildContext context, User user) async {
-    // Create or update user document in Firestore
     final userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
-    // Check role and navigate
     final doc = await userDoc.get();
     print(doc);
     if (doc.exists && doc['role'] == 'admin') {
@@ -22,7 +19,8 @@ class AuthGate extends StatelessWidget {
       await userDoc.set({
         'email': user.email,
         'role': 'user',
-        'profilePicture' : user.photoURL ?? null
+        'photoURL' : user.photoURL ?? null,
+        'username' :  user.displayName ?? null,
       }, SetOptions(merge: true));
       Navigator.pushReplacementNamed(context, '/home');
     }
@@ -40,9 +38,12 @@ class AuthGate extends StatelessWidget {
               GoogleProvider(clientId: "662317488999-545r1t8utr6r2d8becvg2cuf0629hhfv.apps.googleusercontent.com"),
             ],
             headerBuilder: (context, constraints, shrinkOffset) => Column(
-              children: [Text("[LOGO]")],
               crossAxisAlignment: CrossAxisAlignment.center,
               mainAxisAlignment: MainAxisAlignment.center,
+              children: [Expanded(
+                  child:Image.asset(
+                "lib/Assets/Icons/food_truck.png",
+              ))],
             ),
             subtitleBuilder: (context, action) => Padding(
               padding: EdgeInsets.only(top: 16),
@@ -74,11 +75,14 @@ class AuthGate extends StatelessWidget {
             await _handlePostSignIn(context, user);
           }
         });
-        return Center(
-          child: SpinKitDancingSquare(
-            color: Colors.blueAccent,
-            size: 50,
-          ),
+        return Container(
+          color: Colors.white,
+          child: Center(
+            child: SpinKitThreeInOut(
+              color: Colors.blueAccent,
+              size: 50,
+            ),
+          )
         );
       },
     );

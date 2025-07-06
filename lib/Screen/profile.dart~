@@ -185,6 +185,7 @@ class _ProfileState extends State<Profile> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(title: Text('Profile')),
       body: SingleChildScrollView(
           padding: EdgeInsets.all(24),
           child: auth.currentUser!.emailVerified ?

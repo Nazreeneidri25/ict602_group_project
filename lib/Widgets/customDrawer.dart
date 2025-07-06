@@ -36,8 +36,6 @@ class CustomDrawer extends StatelessWidget {
                 end: Alignment.bottomRight,
               ),
             ),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
               child: Row(
                 children: [
                   SizedBox(width: 24),
@@ -46,10 +44,15 @@ class CustomDrawer extends StatelessWidget {
                     child: CircleAvatar(
                       radius: 36,
                       backgroundColor: Colors.white,
-                      child: Image.asset(
+                      backgroundImage: auth.currentUser?.photoURL != null
+                          ? NetworkImage(auth.currentUser!.photoURL!)
+                          : null,
+                      child: auth.currentUser?.photoURL == null
+                          ? Image.asset(
                         "lib/Assets/Icons/user.png",
                         height: 48,
-                      ),
+                      )
+                          : null,
                     ),
                   ),
                   SizedBox(width: 16),
@@ -82,7 +85,6 @@ class CustomDrawer extends StatelessWidget {
                 ],
               ),
             ),
-          ),
           SizedBox(height: 8),
           ListTile(
             leading: Icon(Icons.home_rounded, color: Colors.blueAccent),
@@ -90,6 +92,7 @@ class CustomDrawer extends StatelessWidget {
                 "Home", style: TextStyle(fontWeight: FontWeight.w500)),
             onTap: () => onNavigate(context , "/home"),
           ),
+          Divider(thickness: 1, color: Colors.grey[200], height: 32),
           ListTile(
             leading: Icon(Icons.add_location , color: Colors.blueAccent),
             title: Text(
@@ -97,19 +100,13 @@ class CustomDrawer extends StatelessWidget {
                 style: TextStyle(fontWeight:  FontWeight.w500)),
             onTap: () => onNavigate(context, "/addMarker"),
           ),
+          Divider(thickness: 1, color: Colors.grey[200], height: 32),
           ListTile(
             leading: Icon(
                 Icons.info_outline_rounded, color: Colors.blueAccent),
             title: Text(
                 "About", style: TextStyle(fontWeight: FontWeight.w500)),
-            onTap: () => {},
-          ),
-          ListTile(
-            leading: Icon(
-                Icons.settings_rounded, color: Colors.blueAccent),
-            title: Text("Settings",
-                style: TextStyle(fontWeight: FontWeight.w500)),
-            onTap: () => {},
+            onTap: () => onNavigate(context, "/about"),
           ),
           Divider(thickness: 1, color: Colors.grey[200], height: 32),
           Spacer(),

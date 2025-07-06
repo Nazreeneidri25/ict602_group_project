@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
+import 'package:ict602_group_project/Screen/about.dart';
 import 'package:ict602_group_project/Screen/addMarker.dart';
 import 'package:ict602_group_project/Screen/admin_dashboard.dart';
 import 'package:ict602_group_project/Screen/home.dart';
@@ -14,7 +14,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 
 void main()async{
-  WidgetsFlutterBinding.ensureInitialized(); //tells Flutter to not start the widget code until flutter framework is completely booted
+  WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -32,26 +32,38 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Our Group Project',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        textTheme: GoogleFonts.poppinsTextTheme()
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+          textTheme: GoogleFonts.poppinsTextTheme()
       ),
       home: LoaderOverlay(
-          child: AuthGate(),
-          overlayWidgetBuilder: (_){
-            return Center(
-              child: SpinKitDancingSquare(
+        child: AuthGate(),
+        overlayWidgetBuilder: (_) {
+          return Center(
+              child: SpinKitThreeInOut(
                 color: Colors.blueAccent,
                 size: 50.0,
               )
-            );
-          },
+          );
+        },
       ),
       routes: {
         "/auth": (context) => AuthGate(),
-        "/admin_dashboard": (context) => AdminDashboard(),
+        "/admin_dashboard": (context) =>
+            LoaderOverlay(
+              child: AdminDashboard(),
+              overlayWidgetBuilder: (_) {
+                return Center(
+                    child: SpinKitThreeInOut(
+                      color: Colors.blueAccent,
+                      size: 50.0,
+                    )
+                );
+              },
+            ),
         "/home": (context) => ParentWidget(child: HomeScreen()),
-        "/profile" : (context) => ParentWidget(child: Profile()),
-        "/addMarker" : (context) => ParentWidget(child: AddMarker()),
+        "/profile": (context) => ParentWidget(child: Profile()),
+        "/addMarker": (context) => ParentWidget(child: AddMarker()),
+        "/about": (context) => ParentWidget(child: AboutPage()),
       },
     );
   }

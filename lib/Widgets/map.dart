@@ -33,16 +33,16 @@ class _mapCustomState extends State<MapCustom> {
   @override
   void initState() {
     super.initState();
-    _getUserLocation().then((pos) {
+    _getUserLocation().then((pos) async {
+      context.loaderOverlay.show();
       setState(()  {
         _currentLatLng =  LatLng(pos.latitude, pos.longitude);
         mapController.animateCamera(CameraUpdate.newLatLng(_currentLatLng));
       });
-      setState(() async{
-        context.loaderOverlay.show();
-        currentPlaceID = await getPlaceIdFromLatLng(pos.latitude, pos.longitude);
-        _showNearbyFoodTruck(_currentLatLng);
-        context.loaderOverlay.hide();
+      currentPlaceID = await getPlaceIdFromLatLng(pos.latitude, pos.longitude);
+      _showNearbyFoodTruck(_currentLatLng);
+      context.loaderOverlay.hide();
+      setState(() {
       });
     });
     showFoodTruckUserWidgets();
@@ -50,30 +50,36 @@ class _mapCustomState extends State<MapCustom> {
 
   }
 
-  Future<void> showFoodTruckUserWidgets() async {
+  void showFoodTruckUserWidgets() async {
     final snapshot = await FirebaseFirestore.instance.collection('food_trucks').get();
 
-    final markers = snapshot.docs.map((doc) {
+    final markerFutures = snapshot.docs.map((doc) async {
       final data = doc.data();
       final lat = data['latitude'] as double?;
       final lng = data['longitude'] as double?;
-      final foodType = data['foodTruckType'];
 
-      final placeID = getPlaceIdFromLatLng(lat!, lng!);
+      if (lat == null || lng == null) return null;
+
+      final placeID = await getPlaceIdFromLatLng(lat, lng); // Await async function
+
+      print("PLACE ID SINI : $placeID");
 
       return Marker(
         markerId: MarkerId(doc.id),
         position: LatLng(lat, lng),
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-        // onTap: () => _showPlaceDetails(placeID as String , data);
+        onTap: () => _showPlaceDetails(placeID!, data),
       );
-    }).whereType<Marker>().toSet();
+    }).toList();
+
+    final markersList = await Future.wait(markerFutures);
+    final markers = markersList.whereType<Marker>().toSet();
 
     setState(() {
       FoodTruckUserWidgets = markers;
     });
-
   }
+
 
   Future<String?> getPlaceIdFromLatLng(double lat, double lng) async {
     String url = "https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat,$lng&key=$apiKey";
@@ -149,7 +155,7 @@ class _mapCustomState extends State<MapCustom> {
       mapController.animateCamera(CameraUpdate.newLatLng(latLng));
       // _currentPlaceDetails = result;
       _showNearbyFoodTruck(_currentLatLng);
-      _showPlaceDetails(placeId); // Pass the decoded result map
+      _showPlaceDetails(placeId , null); // Pass the decoded result map
     }
     context.loaderOverlay.hide();
   }
@@ -174,7 +180,7 @@ class _mapCustomState extends State<MapCustom> {
             markerId: MarkerId(place['place_id']),
             position: LatLng(location['lat'], location['lng']),
             infoWindow: InfoWindow(title: place['name']),
-            onTap: () => _showPlaceDetails(place['place_id']),
+            onTap: () => _showPlaceDetails(place['place_id'] , null),
           ),
         );
       }
@@ -187,13 +193,14 @@ class _mapCustomState extends State<MapCustom> {
 
   }
 
-  void _showPlaceDetails(String placeId) async{
+  void _showPlaceDetails(String placeId , Map<String , dynamic>? data ) async {
     String URL = "https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&key=$apiKey&*";
     final response = await http.get(Uri.parse(URL));
-    print(placeId);
+    print("place id: $placeId");
+    print("data : $data");
 
 
-    if(response.statusCode == 200) {
+    if (response.statusCode == 200) {
       final result = jsonDecode(response.body)["result"];
       print("here $result");
       double? rating = result['rating'];
@@ -203,13 +210,19 @@ class _mapCustomState extends State<MapCustom> {
       List<dynamic>? openingHours = result['opening_hours']?['weekday_text'];
 
 
-
       String? photoRef = result['photos'] != null && result['photos'].isNotEmpty
           ? result['photos'][0]['photo_reference']
           : null;
       String photoURL = photoRef != null
           ? "https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=$photoRef&key=AIzaSyCIoRmMjbFRJePcWTt0-Nz7WEIcGCzV74s"
           : "";
+
+      DateTime? dateAdded;
+      if (data != null) {
+        final timestamp = data["timestamp"] as Timestamp;
+        dateAdded = timestamp.toDate();
+      }
+
 
 
       showModalBottomSheet(
@@ -239,7 +252,7 @@ class _mapCustomState extends State<MapCustom> {
                       children: [
                         Expanded(
                           child: Text(
-                            name ?? "No Name",
+                            data?["foodTruckName"] ?? (name ?? "No Name"),
                             style: const TextStyle(
                                 fontSize: 22, fontWeight: FontWeight.bold),
                           ),
@@ -265,6 +278,35 @@ class _mapCustomState extends State<MapCustom> {
                       ],
                     ),
                     const SizedBox(height: 8),
+                    if(data != null)...[
+                      Column(
+                          spacing: 5.0,
+                          children: [
+                        Row(
+                          spacing: 5.0,
+                          children: [
+                            const Icon(
+                                Icons.people, color: Colors.blueAccent),
+                            Text("Added by ${data["addedUser"]}")
+                          ],
+                        ),
+                        Row(
+                          spacing: 5.0,
+                          children: [
+                            const Icon(Icons.fastfood_rounded, color: Colors.blueAccent),
+                            Text(data["foodTruckType"]),
+                          ],
+                        ),
+                        Row(
+                          spacing: 5.0,
+                          children: [
+                            const Icon(Icons.access_time_outlined, color: Colors.blueAccent),
+                            Text("Date Added : $dateAdded")
+                          ],
+                        )
+                      ]
+                      ),
+                    ],
                     Row(
                       children: [
                         const Icon(Icons.location_on, color: Colors.blueAccent,
@@ -295,13 +337,17 @@ class _mapCustomState extends State<MapCustom> {
                       ),
                       Center(
                         child: InkWell(
-                          onTap: () {}, 
+                          onTap: () {},
                           borderRadius: BorderRadius.circular(30),
                           child: Container(
-                            padding: EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 32, vertical: 14),
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
-                                colors: [Colors.blueAccent, Colors.lightBlueAccent],
+                                colors: [
+                                  Colors.blueAccent,
+                                  Colors.lightBlueAccent
+                                ],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ),
@@ -317,7 +363,8 @@ class _mapCustomState extends State<MapCustom> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.phone, color: Colors.white, size: 22),
+                                Icon(
+                                    Icons.phone, color: Colors.white, size: 22),
                                 SizedBox(width: 10),
                                 Text(
                                   "Call",
@@ -426,7 +473,7 @@ class _mapCustomState extends State<MapCustom> {
                   position: _currentLatLng,
                   onTap: () async{
                     context.loaderOverlay.show();
-                    _showPlaceDetails(currentPlaceID!);
+                    _showPlaceDetails(currentPlaceID! , null);
                     context.loaderOverlay.hide();
 
                   }
@@ -439,7 +486,8 @@ class _mapCustomState extends State<MapCustom> {
                 String? placeId = await getPlaceIdFromLatLng(poi.latitude, poi.longitude);
 
                 if (placeId != null) {
-                  _showPlaceDetails(placeId);
+                  print("$placeId  kjkjkjkjkjk");
+                  _showPlaceDetails(placeId, null);
                   widget.onLocationSelected!(poi);
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
