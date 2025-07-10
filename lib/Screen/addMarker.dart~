@@ -108,7 +108,7 @@ class _AddMarkerState extends State<AddMarker> {
       "longitude": _selectedLatLng?.longitude,
       "foodTruckType": _selectedFoodType,
       "foodTruckName": _foodTruckNameController.text.trim(),
-      "locations": await getPlaceIdFromLatLng(_selectedLatLng!.latitude , _selectedLatLng!.longitude),
+      "locations": getPlaceIdFromLatLng(_selectedLatLng!.latitude , _selectedLatLng!.longitude),
       "addedUser": auth.currentUser?.email ?? '',
       "timestamp": FieldValue.serverTimestamp(),
     };
