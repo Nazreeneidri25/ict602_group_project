@@ -298,7 +298,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         title: const Text('Admin Dashboard'),
       ),
       drawer: Drawer(
-        child: ListView(
+        child: SafeArea(child: ListView(
           children: [
             DrawerHeader(
               decoration: BoxDecoration(color: Colors.blueAccent),
@@ -313,7 +313,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     Navigator.pushReplacementNamed(context, '/auth');
                   },
                 )),
-          ],
+          ])
         )),
       body: foodTruckData.isEmpty
           ? Center(

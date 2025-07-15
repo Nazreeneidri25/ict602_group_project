@@ -298,33 +298,24 @@ class _AdminDashboardState extends State<AdminDashboard> {
         title: const Text('Admin Dashboard'),
       ),
       drawer: Drawer(
-        child: Drawer(
-          child: Column(
-            children: [
-              DrawerHeader(
-                decoration: BoxDecoration(color: Colors.blueAccent),
-                child: Text('Admin Menu', style: TextStyle(color: Colors.white)),
-              ),
-              Expanded(
-                child: ListView(
-                  children: [
-                    // Other menu items go here
-                  ],
-                ),
-              ),
-              Divider(),
-              ListTile(
-                leading: Icon(Icons.logout),
-                title: Text('Sign Out'),
-                onTap: () async {
-                  await _auth.signOut();
-                  Navigator.pushReplacementNamed(context, '/auth');
-                },
-              ),
-            ],
-          ),
+        child: ListView(
+          children: [
+            DrawerHeader(
+              decoration: BoxDecoration(color: Colors.blueAccent),
+              child: Text('Admin Menu', style: TextStyle(color: Colors.white)),
+            ),
+            Expanded(
+                child: ListTile(
+                  leading: const Icon(Icons.logout),
+                  title: const Text('Sign Out'),
+                  onTap: () async {
+                    await _auth.signOut();
+                    Navigator.pushReplacementNamed(context, '/auth');
+                  },
+                )),
+          ],
         )),
-          body: foodTruckData.isEmpty
+      body: foodTruckData.isEmpty
           ? Center(
         child: Padding(
           padding: const EdgeInsets.all(32.0),
