@@ -1,6 +1,17 @@
-# ict602_group_project
+# ict602_group_project RCDCS2515A
 
-A new Flutter project.
+
+MUHAMMAD NAZREEN EIDRI MUDA BIN MUDA ALANG
+2024988385<br>
+MUHAMAD LUQMAN HAKIM BIN MUHAMAD ALI
+2024938691<br>
+MUHAMMAD AIMAN BIN MOHD FAUZI
+2024794251<br>
+SYAHRIL RUMIZAM BIN ABDUL RAZAK
+2024568363
+
+# WEB HOSTING LINK (https://ict602-group-project-d8ade.web.app)
+# VIDEO YOUTUBE LINK (https://youtu.be/WinrQOfDz6I)
 
 ## Getting Started
 
